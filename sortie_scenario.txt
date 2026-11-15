@@ -1,0 +1,133 @@
+[1] 07:30 - Ouverture
+Cafeteria(11 produits, 5 clients, 0 commandes)
+
+[2] 07:45 - Commande Alice
+Commande n°1 - 07:45
+Client : Alice
+ Profil : Etudiant
+Café expresso x 1 - 1.20 €
+Croissant x 1 - 1.20 €
+Total : 2.40 €
+Payé : 2.40 €
+
+
+[3] 08:10 - Commande Farid
+Commande n°2 - 08:10
+Client : Farid
+ Profil : Personnel
+Café expresso x 2 - 2.40 €
+Total : 2.40 €
+Payé : 2.40 €
+
+
+[4] 08:30 - Commande Bruno
+REFUSÉ : solde insuffisant
+
+[5] 08:35 - Recharge Bruno 20,00 €
+recharge effectuée avec succès
+
+[6] 08:40 - Commande Bruno
+Commande n°4 - 08:40
+Client : Bruno
+ Profil : Alternant
+Chocolat chaud x 1 - 1.60 €
+Croissant x 3 - 3.60 €
+Total : 5.20 €
+Payé : 5.20 €
+
+
+[7] 09:15 - Commande visiteur
+Commande n°5 - 09:15
+Client : Visiteur
+ Profil : Visiteur
+Thé x 1 - 1.30 €
+Cookie x 1 - 1.40 €
+Total : 2.70 €
+Payé : 2.70 €
+
+
+[8] 11:00 - Commande Chloé
+REFUSÉ : hors créneau
+
+[9] 12:05 - Commande Chloé
+Commande n°7 - 12:05
+Client : Chloé
+ Profil : Etudiant
+Plat du jour x 1 - 7.20 €
+Jus d'orange x 1 - 2.00 €
+Cookie x 1 - 1.40 €
+Total : 10.60 €
+Remise gros panier : -1.06 €
+Payé : 9.54 €
+
+
+[10] 12:10 - Recharge Alice 150,00 €
+REFUSÉ : recharge refusee : montant invalide ou dépassement du plafond
+
+[11] 12:20 - Commande Alice
+Commande n°8 - 12:20
+Client : Alice
+ Profil : Etudiant
+Wrap végétarien x 1 - 4.60 €
+Eau 50 cl x 1 - 1.00 €
+Fruit de saison x 1 - 0.80 €
+Café expresso x 1 - 1.20 €
+Total : 7.60 €
+Payé : 7.60 €
+
+
+[12] 12:45 - Commande visiteur
+REFUSÉ : rupture de stock
+
+[13] 13:00 - Commande Bruno
+REFUSÉ : produit inconnu
+
+[14] 15:30 - Commande Alice
+REFUSÉ : solde insuffisant
+
+[15] 16:00 - Réapprovisionnement Sandwich +10
+réapprovisionnement effectué avec succès
+
+[16] 17:30 - Commande Farid
+Commande n°12 - 17:30
+Client : Farid
+ Profil : Personnel
+Thé x 2 - 2.60 €
+Total : 2.60 €
+Payé : 2.60 €
+
+
+[17] 18:30 - Clôture
+ RAPPORT DE CLÔTURE 
+Commandes acceptées : 7
+Chiffre d'affaires : 32.44 €
+Total des remises : 1.06 €
+
+ Refus par motif 
+- solde insuffisant : 2
+- hors créneau : 1
+- rupture de stock : 1
+- produit inconnu : 1
+
+ Top 3 des produits vendus 
+- Café expresso : 4 vendus
+- Croissant : 4 vendus
+- Thé : 3 vendus
+
+ Carte par prix croissant 
+- Fruit de saison : 0.80 € (stock : 29)
+- Eau 50 cl : 1.00 € (stock : 39)
+- Café expresso : 1.20 € (stock : 96)
+- Croissant : 1.20 € (stock : 26)
+- Thé : 1.30 € (stock : 57)
+- Cookie : 1.40 € (stock : 23)
+- Chocolat chaud : 1.60 € (stock : 39)
+- Jus d'orange : 2.00 € (stock : 23)
+- Sandwich jambon-beurre : 4.00 € (stock : 25)
+- Wrap végétarien : 4.60 € (stock : 9)
+- Plat du jour : 7.20 € (stock : 19)
+
+ Badges sous 3,00 € 
+- Alice : 2.00 €
+- Farid : -5.00 €
+
