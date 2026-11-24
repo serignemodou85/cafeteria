@@ -7,6 +7,7 @@ class Produit:
         self.categorie = categorie
         self.prix = prix
         self.stock = stock
+        self.rappele= False
 
 
     def __repr__(self):
@@ -19,6 +20,8 @@ class Produit:
 
     def est_disponible(self, quantite, heure):
         """permet de vérifier si le produit est disponible en stock et si la quantité demandée est disponible et le creneau horaire est respecté pour les plats"""
+        if self.rappele is True :
+            return False, "produit rappelé"
         if quantite <= 0:
             return False,"quantité invalide"
         if quantite > self.stock:
@@ -40,6 +43,8 @@ class Produit:
 
     def reapprovisionner(self, quantite):
         """permet de réapprovisionner le stock du produit"""
+        if self.rappele:
+            return False, "produit rappelé"
         if quantite <= 0:
             return False,"quantité invalide"
         self.stock += quantite
@@ -71,6 +76,7 @@ class Client:
         self.profil = profil
         self.solde = solde
         self.pointfidelite = pointfidelite
+        self.points_initiaux = pointfidelite
 
     def __repr__(self):
         return f"Client({self.nom!r}, {self.profil!r}, {self.solde}, {self.pointfidelite})"
@@ -92,7 +98,7 @@ class Client:
     def peut_payer(self, montant):
         """dire s'il peut payer un montant donné """
         if self.profil == "Visiteur":
-            return True ,"paiement effectué avec succès"
+            return True ,"paiement possible"
         if self.profil == "Personnel":
             if self.solde - montant < self.DECOUVERT_PERSONNEL:
                 return False,"solde insuffisant"
@@ -146,8 +152,10 @@ class Client:
         self.pointfidelite += points_gagnes
         return f"{points_gagnes} points de fidélité ajoutés, total : {self.pointfidelite} points"
 
-
-
+    def rejouer_fidelite(self, montant_payes):
+        self.pointfidelite = self.points_initiaux
+        for montant in montant_payes:
+            self.ajouter_points_fidelite(montant)
 
 class Commande:
      
@@ -159,6 +167,10 @@ class Commande:
         self.heure= heure
         self.client= client
         self.lignes=[]
+        self.statut= "en cours"
+        self.paye=0
+        self.reduction=0
+        self.avantage=0
          
 
     def __repr__(self):
@@ -174,6 +186,7 @@ class Commande:
         """va nous permettre d'ajouter une ligne de commande à la commande en cours ,
         Vérifier que chaque code produit existe, que chaque quantité est positive,
         que chaque produit est disponible (stock suffisant, créneau ouvert pour les plats) """
+        # pour chaque commande de cookie -50
         if Produit.est_disponible(produit, quantite, self.heure)[0] and quantite > 0:
             self.lignes.append((produit, quantite))
             return True ,"ligne ajoutée avec succès"
@@ -199,22 +212,22 @@ class Commande:
         return False
 
 
-    def ticket(self, reduction=0, avantage=0, paye=None):
-            """ticket de la commande ; reduction, avantage et paye viennent de traiter_commande"""
-            if paye is None:
-                paye = self.calculer_total()
-            texte = f"Commande n°{self.numero} - {self.heure}\n"
-            texte += f"Client : {self.client.nom}\n"
-            texte += f" Profil : {self.client.profil}\n"
-            for produit, quantite in self.lignes:
-                texte += f"{produit.nom} x {quantite} - {produit.prix * quantite:.2f} €\n"
-            texte += f"Total : {self.calculer_total():.2f} €\n"
-            if reduction > 0:
-                texte += f"Remise gros panier : -{reduction:.2f} €\n"
-            if avantage > 0:
-                texte += f"Avantage fidélité : -{avantage:.2f} €\n"
-            texte += f"Payé : {paye:.2f} €\n"
-            return texte
+    def ticket(self):
+        texte = ""
+        if self.statut == "annulée":
+            texte += "*** ANNULÉE ***\n"
+        texte += f"Commande n°{self.numero} - {self.heure}\n"
+        texte += f"Client : {self.client.nom}\n"
+        texte += f" Profil : {self.client.profil}\n"
+        for produit, quantite in self.lignes:
+            texte += f"{produit.nom} x {quantite} - {produit.prix * quantite:.2f} €\n"
+        texte += f"Total : {self.calculer_total():.2f} €\n"
+        if self.reduction > 0:
+            texte += f"Remise gros panier : -{self.reduction:.2f} €\n"
+        if self.avantage > 0:
+            texte += f"Avantage fidélité : -{self.avantage:.2f} €\n"
+        texte += f"Payé : {self.paye:.2f} €\n"
+        return texte
 
     def __iter__(self):
             return iter(self.lignes)
@@ -229,6 +242,10 @@ class Cafeteria:
         self.refus= {}
         self.chiffres_affaires=0
         self.total_remises = 0
+        self.nb_annulations = 0
+        self.total_rembourse = 0
+        self.rappels = []
+
 
     def __repr__(self):
         return f"Cafeteria({len(self.produits)} produits, {len(self.clients)} clients, {len(self.commandes)} commandes)"
@@ -249,11 +266,16 @@ class Cafeteria:
         reduction,message_reduction= commande.client.calculer_reduction(total)
         total -= reduction
         avantage_fidelite, message_fidelite= commande.client.avantage_point_fidelite()
+        avantage_fidelite = min(avantage_fidelite, total)   # l'avantage ne dépasse pas le total
         total -= avantage_fidelite
         total = round(total, 2)
 
         possible, motif = commande.client.peut_payer(total)
         if possible:
+            commande.paye = total
+            commande.reduction = reduction
+            commande.avantage = avantage_fidelite
+            commande.statut = "acceptée"
             self.chiffres_affaires += total
             self.total_remises +=reduction + avantage_fidelite
             commande.client.est_debiter(total)
@@ -261,7 +283,7 @@ class Cafeteria:
                 produit.vendre(quantite)
             commande.client.ajouter_points_fidelite(total)
             self.commandes.append(commande)
-            return True ,commande.ticket(reduction, avantage_fidelite, total)
+            return True ,commande.ticket()
         else:
             if motif in self.refus:
                 self.refus[motif] += 1
@@ -269,10 +291,44 @@ class Cafeteria:
                 self.refus[motif] = 1
             return False ,motif
 
+    def annuler_commande(self, numero):
+        commande = None
+        for c in self.commandes:
+            if c.numero == numero:
+                commande = c
+        if commande is None:
+            return False, "commande inconnue",0
+        if commande.statut == "annulée":
+            return False, "commande déjà annulée",0
+            
+        commande.statut = "annulée"
+        for produit, quantite in commande:
+            produit.reapprovisionner(quantite)
+
+        # b. le remboursement : pas recharger(), donc pas de plafond
+        client = commande.client
+
+        if client.profil != "Visiteur":
+            client.solde = round(client.solde + commande.paye, 2)
+
+        # c. la fidélité : rejouer les commandes acceptées de ce client, dans l'ordre
+        montants = []
+        for c in self.commandes:
+            if c.client == client and c.statut == "acceptée":
+                montants.append(c.paye)
+        client.rejouer_fidelite(montants)
+
+        self.total_rembourse = round(self.total_rembourse + commande.paye, 2)
+        return True, "commande annulée", commande.paye
+            
+
 
 
     def passer_commande(self, articles, heure, client):
         commande = Commande(heure, client)
+        if len(articles) == 0 :
+            return False,"Commande vide"
+        
         for code, quantite in articles:
             if code not in self.produits:
                 motif = "produit inconnu"
@@ -300,44 +356,97 @@ class Cafeteria:
         return client.recharger(montant)
        
 
-        
+    def compter_refus(self, motif):
+        if motif in self.refus:
+            self.refus[motif] += 1
+        else:
+            self.refus[motif] = 1    
 
-    def reapprovisionner(self,code ,quantite):
+    def reapprovisionner(self, code, quantite):
         if code not in self.produits:
             return False, "produit inconnu"
-        produit= self.produits[code]
-        return produit.reapprovisionner(quantite)
-
+        produit = self.produits[code]
+        ok, motif = produit.reapprovisionner(quantite)
+        if not ok:
+            self.compter_refus(motif)
+        return ok, motif
     
+    def rappeler_produit(self, code):
+        if code not in self.produits:
+            return False, "produit inconnu", None
+        produit = self.produits[code]
+        if produit.rappele:
+            self.compter_refus("déjà rappelé")
+            return False, "déjà rappelé", None
+        produit.rappele= True
+        produit.stock=0
+        resume = {"produit": produit.nom, "commandes": [], "remboursements": [], "total": 0}
+        for commande in self.commandes:
+            if commande.statut == "acceptée" and produit in commande:
+                annulee, motif, montant = self.annuler_commande(commande.numero)
+                resume["commandes"].append(commande.numero)
+                resume["remboursements"].append((commande.client.nom, montant))
+                resume["total"] += montant
+        resume["total"] = round(resume["total"], 2)
+        self.rappels.append(resume)
+        return True, "produit rappelé", resume
+
+
     def rapport(self):
         """ nombre de commandes acceptées, refus par motif,
         chiffre d'affaires, remises, top 3 des produits"""
         ventes={}
+        nb_acceptees = 0
+        nb_annulees = 0
+        chiffre_affaires = 0
+        remises = 0
         for commande in self.commandes:
+            if commande.statut == "annulée":
+                nb_annulees += 1
+                continue                  # une commande annulée ne compte pas dans les ventes
+            nb_acceptees += 1
+            chiffre_affaires += commande.paye
+            remises += commande.reduction + commande.avantage
             for produit, quantite in commande.lignes:
                 if produit.code in ventes:
                     ventes[produit.code]+= quantite
                 else:
                      ventes[produit.code]= quantite
         top3= sorted(ventes.items(),key=lambda x: x[1] ,reverse=True)[0:3]
+        nb_annulees_rappel = 0
+        for rappel in self.rappels:
+            nb_annulees_rappel += len(rappel["commandes"])
 
         texte = " RAPPORT DE CLÔTURE \n"
+        texte += f"Commandes acceptées : {nb_acceptees}\n"
+        texte += f"Commandes annulées : {nb_annulees} (dont {nb_annulees_rappel} dues au rappel)\n"
+        texte += f"Chiffre d'affaires : {chiffre_affaires:.2f} €\n"
+        texte += f"Total des remises : {remises:.2f} €\n"
+        texte += f"Total remboursé : {self.total_rembourse:.2f} €\n"
 
-        texte += f"Commandes acceptées : {len(self.commandes)}\n"
-        texte += f"Chiffre d'affaires : {self.chiffres_affaires:.2f} €\n"
-        texte += f"Total des remises : {self.total_remises:.2f} €\n"
+        texte += "\n Rappels \n"
+        if self.rappels:
+            for rappel in self.rappels:
+                texte += f"- {rappel['produit']} : {rappel['total']:.2f} € remboursés\n"
+                par_client = {}
+                for nom, montant in rappel["remboursements"]:
+                    if nom in par_client:
+                        par_client[nom] += montant
+                    else:
+                        par_client[nom] = montant
+                for nom, montant in sorted(par_client.items(), key=lambda x: x[1], reverse=True):
+                    texte += f"    {nom} : {montant:.2f} €\n"
+        else:
+            texte += "Aucun rappel.\n"
 
-        texte += f"\n Refus par motif \n"
-
+        texte += "\n Refus par motif \n"
         if self.refus:
             for motif, nombre in self.refus.items():
                 texte += f"- {motif} : {nombre}\n"
         else:
             texte += "Aucun refus.\n"
 
-         # 5. Afficher le top 3 des produits
         texte += "\n Top 3 des produits vendus \n"
-
         if top3:
             for code, quantite in top3:
                 nom = self.produits[code].nom
@@ -345,17 +454,18 @@ class Cafeteria:
         else:
             texte += "Aucun produit vendu.\n"
 
-
         texte += "\n Carte par prix croissant \n"
         for produit in sorted(self.produits.values()):
-            if produit.stock == 0 :
+            if produit.rappele:
+                texte += f"- {produit.nom} : {produit.prix:.2f} € RAPPELÉ\n"
+            elif produit.stock == 0:
                 texte += f"- {produit.nom} : {produit.prix:.2f} € ÉPUISÉ\n"
-            else :
+            else:
                 texte += f"- {produit.nom} : {produit.prix:.2f} € (stock : {produit.stock})\n"
-                
+
         texte += "\n Badges sous 3,00 € \n"
         for client in self.clients.values():
-            if client.solde < 3.00 and client.profil != "Visiteur" :
+            if client.solde < 3.00 and client.profil != "Visiteur":
                 texte += f"- {client.nom} : {client.solde:.2f} €\n"
 
         return texte
@@ -414,7 +524,19 @@ def jouer_scenario():
     afficher(8, "11:00", "Commande Chloé", cafet.passer_commande([("P03", 1)], "11:00", chloe))
     afficher(9, "12:05", "Commande Chloé", cafet.passer_commande([("P03", 1), ("B04", 1), ("D01", 1)], "12:05", chloe))
     afficher(10, "12:10", "Recharge Alice 150,00 €", cafet.recharger_badge("Alice", 150.00))
+    # --- v2 ---
+    afficher("v2", "12:15", "Commande Bruno", cafet.passer_commande([("P02", 2)], "12:15", bruno))
+    afficher("v2", "12:18", "Commande Chloé", cafet.passer_commande([("P02", 1)], "12:18", chloe))
+    commande_chloe = cafet.commandes[-1].numero
     afficher(11, "12:20", "Commande Alice", cafet.passer_commande([("P02", 1), ("B05", 1), ("D02", 1), ("B01", 1)], "12:20", alice))
+    # --- v2 ---
+    print("\n[v2] 12:25 - Annulation Chloé :", cafet.annuler_commande(commande_chloe))
+    print("\n[v2] 12:26 - Annulation Chloé (2e fois) :", cafet.annuler_commande(commande_chloe))
+    print("\n[v2] 12:27 - Annulation n°999 :", cafet.annuler_commande(999))
+    print("\n[v2] 12:30 - Rappel wrap :", cafet.rappeler_produit("P02"))
+    afficher("v2", "12:35", "Commande Bruno", cafet.passer_commande([("P02", 1)], "12:35", bruno))
+    afficher("v2", "12:36", "Réapprovisionnement wrap +10", cafet.reapprovisionner("P02", 10))
+    print("\n[v2] 12:40 - Rappel wrap (2e fois) :", cafet.rappeler_produit("P02"))
     afficher(12, "12:45", "Commande visiteur", cafet.passer_commande([("P01", 16)], "12:45", visiteur))
     afficher(13, "13:00", "Commande Bruno", cafet.passer_commande([("P01", 1), ("Smoothie mangue", 1)], "13:00", bruno))
     afficher(14, "15:30", "Commande Alice", cafet.passer_commande([("B01", 1), ("D01", 1)], "15:30", alice))
@@ -783,6 +905,93 @@ class TestCafeteria(unittest.TestCase):
         self.assertIn("Commandes acceptées : 1", rapport)
         self.assertIn("Salade : 2", rapport)
 
+class TestAnnulation(unittest.TestCase):
+    def setUp(self):
+        # Une cafétéria neuve : un menu à 10 € (pas de créneau) et un café
+        self.cafeteria = Cafeteria()
+        self.menu = Produit("X1", "Menu", "viennoiserie", 10.0, 100)
+        self.cafe = Produit("B01", "Café expresso", "boisson chaude", 1.20, 100)
+        self.cafeteria.ajouter_produit(self.menu)
+        self.cafeteria.ajouter_produit(self.cafe)
+
+    def derniere_commande(self):
+        return self.cafeteria.commandes[-1]
+
+    # 1. Annuler la dernière commande remet solde, stock et fidélité comme avant
+    def test_annuler_derniere_commande_etat_identique(self):
+        client = Client("Lamine", "Etudiant", 100, 0)
+        self.cafeteria.passer_commande([("X1", 1)], "10:00", client)
+        avant = (client.solde, client.pointfidelite, self.cafe.stock, self.menu.stock)
+        self.cafeteria.passer_commande([("B01", 2)], "10:05", client)
+        annulee, motif, montant = self.cafeteria.annuler_commande(self.derniere_commande().numero)
+        self.assertTrue(annulee)
+        self.assertAlmostEqual(montant, 2.40)
+        apres = (client.solde, client.pointfidelite, self.cafe.stock, self.menu.stock)
+        self.assertAlmostEqual(apres[0], avant[0])
+        self.assertEqual(apres[1:], avant[1:])
+
+    # 2. Commande inconnue
+    def test_annulation_commande_inconnue(self):
+        self.assertEqual(self.cafeteria.annuler_commande(99999), (False, "commande inconnue", 0))
+
+    # 3. Commande déjà annulée
+    def test_annulation_commande_deja_annulee(self):
+        client = Client("Lamine", "Etudiant", 100, 0)
+        self.cafeteria.passer_commande([("B01", 1)], "10:00", client)
+        numero = self.derniere_commande().numero
+        self.assertTrue(self.cafeteria.annuler_commande(numero)[0])
+        self.assertEqual(self.cafeteria.annuler_commande(numero), (False, "commande déjà annulée", 0))
+
+    # 4. Annulation refusée : rien n'est modifié
+    def test_annulation_refusee_rien_ne_change(self):
+        client = Client("Lamine", "Etudiant", 100, 0)
+        self.cafeteria.passer_commande([("B01", 1)], "10:00", client)
+        numero = self.derniere_commande().numero
+        self.cafeteria.annuler_commande(numero)
+        avant = (client.solde, client.pointfidelite, self.cafe.stock, self.cafeteria.total_rembourse)
+        self.cafeteria.annuler_commande(numero)          # refusée : déjà annulée
+        self.cafeteria.annuler_commande(99999)           # refusée : inconnue
+        apres = (client.solde, client.pointfidelite, self.cafe.stock, self.cafeteria.total_rembourse)
+        self.assertEqual(apres, avant)
+
+    # 5. Visiteur : remboursé comptant, compté dans le rapport, solde inchangé
+    def test_remboursement_visiteur(self):
+        visiteur = Client("Moustapha", "Visiteur", 0, 0)
+        self.cafeteria.passer_commande([("X1", 1)], "10:00", visiteur)   # 10 € - 5 % = 9,50 €
+        annulee, motif, montant = self.cafeteria.annuler_commande(self.derniere_commande().numero)
+        self.assertTrue(annulee)
+        self.assertAlmostEqual(montant, 9.50)
+        self.assertEqual(visiteur.solde, 0)
+        self.assertAlmostEqual(self.cafeteria.total_rembourse, 9.50)
+        self.assertIn("Total remboursé : 9.50", self.cafeteria.rapport())
+
+    # 6. Un remboursement n'est pas une recharge : il peut dépasser 150 €
+    def test_remboursement_depasse_150_euros(self):
+        client = Client("Khadija", "Etudiant", 150, 0)
+        self.cafeteria.passer_commande([("X1", 1)], "10:00", client)     # paie 9 € → 141 €
+        self.assertTrue(client.recharger(9)[0])                          # recharge → 150 €
+        self.cafeteria.annuler_commande(self.derniere_commande().numero)
+        self.assertAlmostEqual(client.solde, 159.00)
+
+    # 7. Annuler une commande qui avait utilisé l'avantage fidélité : les 30 points reviennent
+    def test_annulation_avec_avantage_fidelite(self):
+        client = Client("Coumba", "Etudiant", 50, 30)
+        self.cafeteria.passer_commande([("X1", 1)], "10:00", client)     # 10 - 1 - 2 = 7 €
+        self.assertEqual(client.pointfidelite, 7)                        # 30 - 30 + 7
+        annulee, motif, montant = self.cafeteria.annuler_commande(self.derniere_commande().numero)
+        self.assertAlmostEqual(montant, 7.00)
+        self.assertAlmostEqual(client.solde, 50.00)
+        self.assertEqual(client.pointfidelite, 30)
+
+    # 8. Le ticket d'une commande annulée affiche ANNULÉE
+    def test_ticket_commande_annulee(self):
+        client = Client("Lamine", "Etudiant", 100, 0)
+        self.cafeteria.passer_commande([("B01", 1)], "10:00", client)
+        commande = self.derniere_commande()
+        self.assertNotIn("ANNULÉE", commande.ticket())
+        self.cafeteria.annuler_commande(commande.numero)
+        self.assertIn("ANNULÉE", commande.ticket())
+        self.assertEqual(commande.statut, "annulée")
 
 # Lancement des tests
 unittest.main(argv=["ignored"], exit=False)
